@@ -127,7 +127,8 @@ def main():
     ## Check if storage directory exists, if not then create it and save the embeddings
     if not os.path.exists(PERSIST_DIR+"/embeddings.pt"):
         os.makedirs(PERSIST_DIR)
-        embeddings = embed_text(article_df['Content'])
+        with st.spinner("Embedding Documents, Hold tight"):
+            embeddings = embed_text(article_df['Content'])
         torch.save(embeddings,PERSIST_DIR+"/embeddings.pt" )
         st.toast("Embeddings Done")
     else:
