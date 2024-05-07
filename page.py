@@ -5,11 +5,37 @@ import pandas as pd
 import torch
 import os
 import textwrap
-
+import numpy as np
 ## Setting page icon, title, etc ...
 st.set_page_config(page_title="IR system", page_icon="🔎", layout="wide")
 
+footer="""<style>
+a:link , a:visited{
+color: blue;
+background-color: transparent;
+text-decoration: underline;
+}
 
+a:hover,  a:active {
+color: red;
+background-color: transparent;
+text-decoration: underline;
+}
+
+.footer {
+position: fixed;
+left: 0;
+bottom: 0;
+width: 100%;
+background-color: white;
+color: black;
+text-align: center;
+}
+</style>
+<div class="footer">
+<p>Developed with ❤ by Abdullah and Azd</p>
+</div>
+"""
 
 def embed_text(docs):
     """
@@ -20,25 +46,46 @@ def embed_text(docs):
     embeddings = model.encode(docs, convert_to_tensor=True)
     return embeddings   
 
-def get_scores(query_embedding, doc_embedding):
+def get_scores(query_embedding, doc_embedding, metric = "cosine"):
     """
-    Computes Cosine Similarity Score between query vector and all document vectors
+    Computes Similarity Score between query vector and all document vectors
+    metric: default = 'cosine'
+    norm -> l2 norm
+    dot -> dot product
+    inner -> inner product
     """
-    scores = F.cosine_similarity(query_embedding, doc_embedding.unsqueeze(0), dim=-1)
-    return scores.T
+    if metric == "cosine":
+        scores = F.cosine_similarity(query_embedding, doc_embedding.unsqueeze(0), dim=-1)
+        return scores.T
+    if metric == "norm":
+        scores = []
+        for doc in doc_embedding:
+            scores.append(np.linalg.norm(doc-query_embedding))
+        return scores
+    if metric == "inner":
+        scores = []
+        for doc in doc_embedding:
+            score = 1- np.inner(doc, query_embedding)
+            scores.append(score)
+            print(score)
+            print(type(score))
+        return scores
 
-def search(query, article_df, embeddings):
+def search(query, article_df, embeddings, metric = "cosine"):
     query_embedding = embed_text(query)
     results = article_df.copy()
-    results['scores'] = get_scores(query_embedding, embeddings)
-    results = results.sort_values(by="scores",ascending=False)
+    results['scores'] = get_scores(query_embedding, embeddings, metric)
+    
+    results = results.sort_values(by="scores",ascending = (metric != 'cosine'), ignore_index = True)
     col1,col2 = st.columns(2)
     for i, row in results.head(10).iterrows():
-        content = textwrap.shorten(row["Content"], width = 100, placeholder = "...")
+        content = textwrap.shorten(row["Content"], width = 200, placeholder = "...")
         if i%2 == 0:
             with col1:
                 st.subheader(row["Title"])
                 st.write(content)
+                st.write(f"Rank: {i}")
+                st.write(f"Score: {str(row['scores'])}")
                 st.markdown("[Link](%s)"%row["Link"])
                 st.divider()
 
@@ -46,6 +93,8 @@ def search(query, article_df, embeddings):
             with col2:
                 st.subheader(row["Title"])
                 st.write(content)
+                st.write(f"Rank: {i}")
+                st.write(f"Score: {row['scores']}")
                 st.markdown("[Link](%s)"%row["Link"])
                 st.divider()
 
@@ -59,12 +108,15 @@ def main():
     article_df = pd.read_csv("Scrapped_articles.csv")
     embeddings = None
 
-
-
     ### Page structure
-    st.title("IR Engine")
-    text_input = st.text_input("Enter query here")
-
+    st.title("Wikipedia Search System 🔎")
+    col1,col2= st.columns(2)
+    with col1:
+        text_input = st.text_input("Enter query here")
+    with col2:
+        metric = st.selectbox("Choose scoring method:", ("cosine","norm", "inner"), placeholder="Choose a scoring method, defaults to cosine")
+        st.write("Scoring method:", metric)
+    
 
     ### Since Embedding All 50 documents is time consuming, 
     ### we can store a local copy of the embeddings and load them as needed
@@ -77,14 +129,17 @@ def main():
         os.makedirs(PERSIST_DIR)
         embeddings = embed_text(article_df['Content'])
         torch.save(embeddings,PERSIST_DIR+"/embeddings.pt" )
-        st.success("Embeddings Done")
+        st.toast("Embeddings Done")
     else:
         embeddings = torch.load(PERSIST_DIR+"/embeddings.pt")
-        st.success("Loaded Embeddings from storage")
+        st.toast("Loaded Embeddings from storage")
 
     ## Streamlit Text box, if input is supplied then call the search function
     if text_input:
-        search(text_input, article_df, embeddings)
+        search(text_input, article_df, embeddings, metric)
+
+    st.markdown(footer,unsafe_allow_html=True)
+
 
 
 
