@@ -53,30 +53,39 @@ def get_scores(query_embedding, doc_embedding, metric = "cosine"):
     norm -> l2 norm
     dot -> dot product
     inner -> inner product
+    l1 -> l1 norm aka manhatan distance
+    pearson -> pearson correlation
+    spearman -> spearman correlation
     """
     if metric == "cosine":
         scores = F.cosine_similarity(query_embedding, doc_embedding.unsqueeze(0), dim=-1)
         return scores.T
-    if metric == "norm":
-        scores = []
-        for doc in doc_embedding:
-            scores.append(np.linalg.norm(doc-query_embedding))
-        return scores
+    scores = []
+    
+    if metric == "l2":
+       func = lambda x,y: np.linalg.norm(x-y)
     if metric == "inner":
-        scores = []
-        for doc in doc_embedding:
-            score = 1- np.inner(doc, query_embedding)
-            scores.append(score)
-            print(score)
-            print(type(score))
-        return scores
+        func = lambda x,y :1- np.inner(x, y)
+    if metric == "l1":
+        func = lambda x,y : np.sum(np.abs(x - y))
+    if metric == "pearson":
+        func = lambda x,y: np.corrcoef(x, y)[0,1]
+    if metric == "spearman":
+        func = lambda x,y: np.corrcoef(x, y, rowvar=False)[0,1]
+
+    query_embedding = np.array(query_embedding)
+    doc_embedding = np.array(doc_embedding)
+    for doc in doc_embedding:
+        scores.append(func(doc, query_embedding))
+    return scores
+
 
 def search(query, article_df, embeddings, metric = "cosine"):
     query_embedding = embed_text(query)
     results = article_df.copy()
     results['scores'] = get_scores(query_embedding, embeddings, metric)
     
-    results = results.sort_values(by="scores",ascending = (metric != 'cosine'), ignore_index = True)
+    results = results.sort_values(by="scores",ascending = (metric not in ['cosine', 'pearson', 'spearman']), ignore_index = True)
     col1,col2 = st.columns(2)
     for i, row in results.head(10).iterrows():
         content = textwrap.shorten(row["Content"], width = 200, placeholder = "...")
@@ -88,7 +97,6 @@ def search(query, article_df, embeddings, metric = "cosine"):
                 st.write(f"Score: {str(row['scores'])}")
                 st.markdown("[Link](%s)"%row["Link"])
                 st.divider()
-
         else:
             with col2:
                 st.subheader(row["Title"])
@@ -114,7 +122,7 @@ def main():
     with col1:
         text_input = st.text_input("Enter query here")
     with col2:
-        metric = st.selectbox("Choose scoring method:", ("cosine","norm", "inner"), placeholder="Choose a scoring method, defaults to cosine")
+        metric = st.selectbox("Choose scoring method:", ("cosine","norm", "inner","l1", "spearman", "pearson"), placeholder="Choose a scoring method, defaults to cosine")
         st.write("Scoring method:", metric)
     
 
