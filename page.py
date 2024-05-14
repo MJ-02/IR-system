@@ -122,7 +122,7 @@ def main():
     with col1:
         text_input = st.text_input("Enter query here")
     with col2:
-        metric = st.selectbox("Choose scoring method:", ("cosine","norm", "inner","l1", "spearman", "pearson"), placeholder="Choose a scoring method, defaults to cosine")
+        metric = st.selectbox("Choose scoring method:", ("cosine","l2", "inner","l1", "spearman", "pearson"), placeholder="Choose a scoring method, defaults to cosine")
         st.write("Scoring method:", metric)
     
 
